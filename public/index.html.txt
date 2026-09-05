@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>我的日记</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:-apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; background:#fff; color:#333; }
+    .wrap { max-width:680px; margin:0 auto; padding:32px 20px 80px; }
+    header { display:flex; justify-content:space-between; align-items:center; margin-bottom:40px; }
+    h1 { font-size:22px; font-weight:600; }
+    #newBtn { background:#333; color:#fff; border:none; border-radius:20px; padding:9px 18px; font-size:14px; cursor:pointer; }
+    #newBtn:hover { opacity:.85; }
+    .sub { color:#999; font-size:13px; margin-bottom:24px; }
+    .card { border:1px solid #eee; border-radius:12px; padding:18px; margin-bottom:16px; }
+    .card .date { color:#999; font-size:12px; margin-bottom:6px; }
+    .card .title { font-size:16px; font-weight:600; margin-bottom:8px; }
+    .card .content { font-size:14px; line-height:1.7; color:#555; }
+    .del { float:right; background:none; border:none; color:#ccc; font-size:18px; cursor:pointer; }
+    .del:hover { color:#e33; }
+    #form { display:none; border:1px solid #eee; border-radius:12px; padding:18px; margin-bottom:24px; }
+    #form label { display:block; font-size:13px; color:#666; margin:12px 0 4px; }
+    #form input, #form textarea { width:100%; border:1px solid #ddd; border-radius:8px; padding:9px; font-size:14px; font-family:inherit; }
+    #form textarea { min-height:100px; resize:vertical; }
+    .btns { margin-top:14px; display:flex; gap:10px; }
+    .btn { border:none; border-radius:8px; padding:9px 16px; font-size:14px; cursor:pointer; }
+    .btn-primary { background:#333; color:#fff; }
+    .btn-cancel { background:#f2f2f2; color:#555; }
+    #empty { text-align:center; color:#bbb; padding:40px 0; font-size:14px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>我的日记</h1>
+      <button id="newBtn" onclick="toggleForm(true)">✍ 写日记</button>
+    </header>
+    <p class="sub">记录那些想留住的小时刻</p>
+
+    <div id="form">
+      <p style="font-weight:600;margin-bottom:4px;">写日记</p>
+      <label>日期</label><input type="date" id="f-date" />
+      <label>标题</label><input id="f-title" placeholder="今天想记点什么" />
+      <label>内容</label><textarea id="f-content" placeholder="写下来吧…"></textarea>
+      <div class="btns">
+        <button class="btn btn-primary" onclick="save()">保存</button>
+        <button class="btn btn-cancel" onclick="toggleForm(false)">取消</button>
+      </div>
+    </div>
+
+    <div id="list"></div>
+    <div id="empty" style="display:none;">还没有日记，写下第一篇吧 ✍</div>
+  </div>
+
+  <script>
+    const SUPABASE_URL = "https://nufbyjqcfvbxvrxuomv.supabase.co";
+    const SUPABASE_ANON_KEY = "sb_publishable_bw7D4fS0gncg14_ALGeEVg_l5aXGA33";
+    const TABLE = "diaries";
+    const headers = {
+      "apikey": SUPABASE_ANON_KEY,
+      "Authorization": "Bearer " + SUPABASE_ANON_KEY,
+      "Content-Type": "application/json"
+    };
+
+    async function load() {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/${TABLE}?select=*&order=date.desc`, { headers });
+      const rows = await res.json();
+      render(rows);
+    }
+
+    function render(rows) {
+      const list = document.getElementById("list");
+      const empty = document.getElementById("empty");
+      if (!rows || rows.length === 0) { list.innerHTML = ""; empty.style.display = "block"; return; }
+      empty.style.display = "none";
+      list.innerHTML = rows.map(r => `
+        <div class="card">
+          <button class="del" onclick="del('${r.id}')">×</button>
+          <div class="date">${r.date}</div>
+          <div class="title">${escapeHtml(r.title || "")}</div>
+          <div class="content">${escapeHtml(r.content || "")}</div>
+        </div>`).join("");
+    }
+
+    async function save() {
+      const date = document.getElementById("f-date").value || new Date().toISOString().slice(0,10);
+      const title = document.getElementById("f-title").value.trim();
+      const content = document.getElementById("f-content").value.trim();
+      if (!title && !content) { alert("写点内容吧"); return; }
+      await fetch(`${SUPABASE_URL}/rest/v1/${TABLE}`, {
+        method: "POST",
+        headers: { ...headers, "Prefer": "return=minimal" },
+        body: JSON.stringify([{ date, title, content }])
+      });
+      document.getElementById("f-title").value = "";
+      document.getElementById("f-content").value = "";
+      toggleForm(false);
+      load();
+    }
+
+    async function del(id) {
+      await fetch(`${SUPABASE_URL}/rest/v1/${TABLE}?id=eq.${id}`, { method: "DELETE", headers });
+      load();
+    }
+
+    function toggleForm(show) {
+      document.getElementById("form").style.display = show ? "block" : "none";
+      if (show) {
+        document.getElementById("f-date").value = new Date().toISOString().slice(0,10);
+        document.getElementById("f-title").focus();
+      }
+    }
+
+    function escapeHtml(s){ return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+
+    load();
+  </script>
+</body>
+</html>
